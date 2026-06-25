@@ -41,6 +41,10 @@ export async function ensureGreeting(characterId: number): Promise<Message[]> {
     method: 'POST',
   });
 
+  if (response.status === 404) {
+    throw new Error('Character not found');
+  }
+
   if (!response.ok) {
     throw new Error('Failed to initialize conversation');
   }

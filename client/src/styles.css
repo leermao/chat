@@ -206,9 +206,32 @@ button {
 }
 
 .status.error {
+  display: flex;
+  align-items: center;
+  gap: 12px;
   border: 1px solid #ffd2d2;
   background: #fff5f5;
   color: #a53131;
+}
+
+.status.error span {
+  flex: 1;
+}
+
+.retry-button {
+  flex-shrink: 0;
+  border: 1px solid #e6d0d0;
+  border-radius: 999px;
+  background: #fff;
+  color: #a53131;
+  padding: 6px 14px;
+  font-size: 13px;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.retry-button:hover {
+  background: #fff0f0;
 }
 
 .character-card {

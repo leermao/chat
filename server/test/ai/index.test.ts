@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { buildSystemPrompt, buildMessages, messagesToLangChain } from './index.js';
+import { buildSystemPrompt, buildMessages, messagesToLangChain } from '../../src/ai/index.js';
 import { AIMessage, HumanMessage, SystemMessage } from '@langchain/core/messages';
 
 describe('buildSystemPrompt', () => {

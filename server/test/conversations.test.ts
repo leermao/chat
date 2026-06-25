@@ -5,9 +5,9 @@ import { join } from 'node:path';
 import request from 'supertest';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { createApp } from './app.js';
+import { createApp } from '../src/app.js';
 
-vi.mock('./ai/index.js', () => ({
+vi.mock('../src/ai/index.js', () => ({
   buildSystemPrompt: vi.fn(() => 'You are a helpful assistant.'),
   buildMessages: vi.fn((_prompt: string, msgs: unknown[]) => msgs),
   streamReply: vi.fn(async function* () {

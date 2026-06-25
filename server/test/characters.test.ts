@@ -5,7 +5,7 @@ import { join } from 'node:path';
 import request from 'supertest';
 import { afterEach, describe, expect, it } from 'vitest';
 
-import { createApp } from './app.js';
+import { createApp } from '../src/app.js';
 
 const tempDirs: string[] = [];
 

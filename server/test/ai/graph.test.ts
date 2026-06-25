@@ -3,7 +3,7 @@ import { AIMessage, type BaseMessage } from '@langchain/core/messages';
 
 const mockInvoke = vi.fn();
 
-vi.mock('./openrouter.js', () => ({
+vi.mock('../../src/ai/openrouter.js', () => ({
   createChatModel: vi.fn(() => ({
     invoke: mockInvoke,
   })),
@@ -17,7 +17,7 @@ describe('streamReply', () => {
   it('yields tokens from the streaming graph', async () => {
     mockInvoke.mockResolvedValueOnce(new AIMessage({ content: '你好！很高兴认识你。' }));
 
-    const { streamReply } = await import('./graph.js');
+    const { streamReply } = await import('../../src/ai/graph.js');
 
     const tokens: string[] = [];
     for await (const token of streamReply([])) {
@@ -32,7 +32,7 @@ describe('streamReply', () => {
   it('passes messages to the LLM', async () => {
     mockInvoke.mockResolvedValueOnce(new AIMessage({ content: 'OK' }));
 
-    const { streamReply } = await import('./graph.js');
+    const { streamReply } = await import('../../src/ai/graph.js');
 
     const messages: BaseMessage[] = [
       new AIMessage({ content: 'Hello' }),
@@ -50,7 +50,7 @@ describe('streamReply', () => {
   it('skips chunks with no content', async () => {
     mockInvoke.mockResolvedValueOnce(new AIMessage({ content: '' }));
 
-    const { streamReply } = await import('./graph.js');
+    const { streamReply } = await import('../../src/ai/graph.js');
 
     const tokens: string[] = [];
     for await (const token of streamReply([])) {

@@ -4,7 +4,7 @@ import { join } from 'node:path';
 
 import { afterEach, describe, expect, it } from 'vitest';
 
-import { createSequelize } from './database.js';
+import { createSequelize } from '../src/database.js';
 
 const tempDirs: string[] = [];
 

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { CharStreamBuffer } from './char-stream.js';
+import { CharStreamBuffer } from '../src/char-stream.js';
 
 describe('CharStreamBuffer', () => {
   it('starts with empty buffer and not done', () => {

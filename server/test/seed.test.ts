@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { getAllCharacters } from './seed.js';
+import { getAllCharacters } from '../src/seed.js';
 
 describe('seed characters', () => {
   const characters = getAllCharacters();
