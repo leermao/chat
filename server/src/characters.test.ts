@@ -37,7 +37,7 @@ describe('characters API', () => {
     expect(response.body.items).toHaveLength(24);
     expect(response.body.items[0]).toMatchObject({
       id: 1,
-      name: '角色_001',
+      name: '知心姐姐',
     });
   });
 
@@ -48,9 +48,9 @@ describe('characters API', () => {
 
     expect(response.body).toMatchObject({
       id: 31,
-      name: '角色_031',
+      name: '摄影之眼',
     });
-    expect(response.body.description).toContain('角色_031');
-    expect(response.body.greeting).toContain('角色_031');
+    expect(response.body.description).toContain('镜头');
+    expect(response.body.greeting).toContain('咔嚓');
   });
 });

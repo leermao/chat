@@ -100,17 +100,24 @@ export async function ensureGreeting(db: AppDatabase, characterId: number): Prom
 
   const MessageEntity = defineMessageModel(db);
 
-  // Use findOrCreate instead of count-then-create to reduce race-condition
-  // window when concurrent requests arrive (e.g. React StrictMode double-fire).
-  await MessageEntity.findOrCreate({
-    where: { characterId },
-    defaults: {
-      characterId,
-      role: 'assistant' as const,
-      content: character.greeting,
-      createdAt: new Date().toISOString(),
-    },
-  });
+  // Use findOrCreate to handle concurrent requests gracefully.
+  // SQLite doesn't support concurrent writes, so if two requests race
+  // the second one may fail — catch the error and fall through to listMessages
+  // (the other request already created the greeting).
+  try {
+    await MessageEntity.findOrCreate({
+      where: { characterId },
+      defaults: {
+        characterId,
+        role: 'assistant' as const,
+        content: character.greeting,
+        createdAt: new Date().toISOString(),
+      },
+    });
+  } catch {
+    // Another concurrent request likely created the greeting already.
+    // Fall through to listMessages below.
+  }
 
   return listMessages(db, characterId);
 }

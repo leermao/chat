@@ -45,7 +45,7 @@ describe('conversation messages API', () => {
     expect(first.body[0]).toMatchObject({
       characterId: 31,
       role: 'assistant',
-      content: '嗨！我是角色_031。今天想聊点什么？',
+      content: '咔嚓！刚才那一瞬间太美了。你平时喜欢拍什么题材？',
     });
     expect(second.body).toHaveLength(1);
     expect(messages.body).toHaveLength(1);
@@ -62,7 +62,7 @@ describe('conversation messages API', () => {
 
     expect(afterClear.body).toEqual([]);
     expect(recreated.body).toHaveLength(1);
-    expect(recreated.body[0].content).toBe('嗨！我是角色_031。今天想聊点什么？');
+    expect(recreated.body[0].content).toBe('咔嚓！刚才那一瞬间太美了。你平时喜欢拍什么题材？');
   });
 
   it('lists chatted characters with their latest message', async () => {
@@ -77,12 +77,12 @@ describe('conversation messages API', () => {
     expect(history.body[0]).toMatchObject({
       character: {
         id: 42,
-        name: '角色_042',
+        name: '真话篓子',
       },
       latestMessage: {
         characterId: 42,
         role: 'assistant',
-        content: '嗨！我是角色_042。今天想聊点什么？',
+        content: '我说句实话你别不爱听啊...',
       },
     });
     expect(history.body[1].character.id).toBe(31);

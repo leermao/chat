@@ -298,11 +298,16 @@ button {
 .chat-topbar {
   min-height: 62px;
   display: grid;
-  grid-template-columns: 96px 1fr 88px;
+  grid-template-columns: 96px 1fr auto;
   align-items: center;
   gap: 12px;
   border-bottom: 1px solid #f0edff;
   padding-bottom: 14px;
+}
+
+.chat-topbar-actions {
+  display: flex;
+  gap: 8px;
 }
 
 .chat-topbar h1 {

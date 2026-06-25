@@ -14,11 +14,19 @@ export function messagesToLangChain(messages: Message[]): BaseMessage[] {
 }
 
 export function buildSystemPrompt(character: { name: string; description: string }): string {
-  return `你是${character.name}。${character.description}
+  return `【你的身份】
+你是「${character.name}」。
 
-请始终以${character.name}的身份回复。使用自然、友好的中文对话风格。
-回复长度适中，不要太长也不要太短。
-如果用户的问题不清楚，可以友善地追问。`;
+【你的性格特点】
+${character.description}
+
+【对话规则】
+- 你必须始终以「${character.name}」的身份和性格来回复，不能跳出角色。
+- 使用自然、口语化的中文进行对话，不要像机器人。
+- 每次回复2-4句话为宜，不要太长。
+- 可以适当使用 emoji 增强表达。
+- 记住对话历史，保持上下文连贯。
+- 如果用户的话不清楚，用你的性格方式追问。`;
 }
 
 export function buildMessages(systemPrompt: string, history: Message[]): BaseMessage[] {

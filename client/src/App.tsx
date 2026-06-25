@@ -13,6 +13,7 @@ import {
   fetchMessages,
   streamAiReply,
 } from './api';
+import { CharStreamBuffer } from './char-stream';
 
 const PAGE_SIZE = 24;
 type ViewState = { name: 'home' } | { name: 'chat'; character: Character } | { name: 'history' };
@@ -130,13 +131,34 @@ function CharacterCell({
 
 function CharacterGrid({
   characters,
+  hasMore,
+  isLoading,
+  onLoadMore,
   onOpen,
 }: {
   characters: Character[];
+  hasMore: boolean;
+  isLoading: boolean;
+  onLoadMore: () => void;
   onOpen: (character: Character) => void;
 }) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [size, setSize] = useState({ width: 0, height: 0 });
+  const loadTriggeredRef = useRef(false);
+
+  // Reset load trigger when characters array changes (new data loaded)
+  useEffect(() => {
+    loadTriggeredRef.current = false;
+  }, [characters]);
+
+  // Reset load trigger when loading finishes (handles error case where characters might not change)
+  const prevLoadingRef = useRef(isLoading);
+  useEffect(() => {
+    if (prevLoadingRef.current && !isLoading) {
+      loadTriggeredRef.current = false;
+    }
+    prevLoadingRef.current = isLoading;
+  }, [isLoading]);
 
   useEffect(() => {
     const el = containerRef.current;
@@ -161,6 +183,23 @@ function CharacterGrid({
   const rowHeight = 260; // card min-height 206 + padding + gap buffer
   const rowCount = Math.ceil(characters.length / columnCount);
 
+  function handleCellsRendered(visibleCells: {
+    columnStartIndex: number;
+    columnStopIndex: number;
+    rowStartIndex: number;
+    rowStopIndex: number;
+  }) {
+    if (
+      !isLoading &&
+      hasMore &&
+      visibleCells.rowStopIndex >= rowCount - 2 &&
+      !loadTriggeredRef.current
+    ) {
+      loadTriggeredRef.current = true;
+      onLoadMore();
+    }
+  }
+
   if (characters.length === 0 || size.width === 0 || size.height === 0) {
     return (
       <div
@@ -181,6 +220,7 @@ function CharacterGrid({
         columnWidth={columnWidth}
         defaultHeight={size.height}
         defaultWidth={size.width}
+        onCellsRendered={handleCellsRendered}
         overscanCount={2}
         rowCount={rowCount}
         rowHeight={rowHeight}
@@ -197,9 +237,11 @@ function CharacterGrid({
 function ChatPage({
   character,
   onBack,
+  onHistory,
 }: {
   character: Character;
   onBack: () => void;
+  onHistory: () => void;
 }) {
   const [messages, setMessages] = useState<Message[]>([]);
   const [draft, setDraft] = useState('');
@@ -210,6 +252,8 @@ function ChatPage({
   const [streamingContent, setStreamingContent] = useState('');
   const [error, setError] = useState('');
   const messageListRef = useRef<HTMLDivElement>(null);
+  const bufferRef = useRef(new CharStreamBuffer());
+  const charTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   async function reloadMessages() {
     const loaded = await fetchMessages(character.id);
@@ -219,6 +263,13 @@ function ChatPage({
   function scrollToBottom() {
     if (messageListRef.current) {
       messageListRef.current.scrollTop = messageListRef.current.scrollHeight;
+    }
+  }
+
+  function stopCharTimer() {
+    if (charTimerRef.current) {
+      clearInterval(charTimerRef.current);
+      charTimerRef.current = null;
     }
   }
 
@@ -252,6 +303,14 @@ function ChatPage({
     };
   }, [character.id]);
 
+  useEffect(() => {
+    return () => {
+      if (charTimerRef.current) {
+        clearInterval(charTimerRef.current);
+      }
+    };
+  }, []);
+
   async function handleSend() {
     const content = draft.trim();
     if (!content || isSending || isStreaming) {
@@ -275,28 +334,46 @@ function ChatPage({
     setIsSending(false);
     setIsStreaming(true);
 
-    let accumulated = '';
+    const buffer = bufferRef.current;
+    buffer.reset();
+
+    // Start character-by-character display timer (~40 chars/sec)
+    charTimerRef.current = setInterval(() => {
+      if (buffer.pending > 0) {
+        const char = buffer.pop();
+        if (char !== null) {
+          setStreamingContent((prev) => prev + char);
+          scrollToBottom();
+        }
+      } else if (buffer.isDrained) {
+        // Buffer fully drained and stream complete — persist and clean up
+        if (charTimerRef.current) {
+          clearInterval(charTimerRef.current);
+          charTimerRef.current = null;
+        }
+        reloadMessages()
+          .then(() => setStreamingContent(''))
+          .finally(() => setIsStreaming(false));
+      }
+    }, 25);
 
     try {
       for await (const event of streamAiReply(character.id, content)) {
         if ('token' in event) {
-          accumulated += event.token;
-          setStreamingContent(accumulated);
-          scrollToBottom();
+          buffer.push(event.token);
         } else if ('error' in event) {
           setError(event.error);
+          stopCharTimer();
+          setIsStreaming(false);
           break;
         } else if ('done' in event) {
+          buffer.markDone();
           break;
         }
       }
-
-      // Reload messages to get persisted messages with correct IDs
-      await reloadMessages();
-      setStreamingContent('');
     } catch (streamError) {
       setError(streamError instanceof Error ? streamError.message : 'Stream failed');
-    } finally {
+      stopCharTimer();
       setIsStreaming(false);
     }
   }
@@ -328,9 +405,14 @@ function ChatPage({
           <h1>{character.name}</h1>
           <p>{character.description}</p>
         </div>
-        <button type="button" disabled={isClearing} onClick={() => void handleClear()}>
-          清空
-        </button>
+        <nav className="chat-topbar-actions">
+          <button type="button" onClick={onHistory}>
+            历史
+          </button>
+          <button type="button" disabled={isClearing} onClick={() => void handleClear()}>
+            清空
+          </button>
+        </nav>
       </header>
 
       <section className="chat-profile">
@@ -566,7 +648,7 @@ export default function App() {
       />
 
       {view.name === 'chat' ? (
-        <ChatPage character={view.character} onBack={() => handleSetView({ name: 'home' })} />
+        <ChatPage character={view.character} onBack={() => handleSetView({ name: 'home' })} onHistory={() => handleSetView({ name: 'history' })} />
       ) : view.name === 'history' ? (
         <HistoryPage
           onHome={() => handleSetView({ name: 'home' })}
@@ -599,16 +681,14 @@ export default function App() {
 
         <CharacterGrid
           characters={characters}
+          hasMore={hasMore}
+          isLoading={isLoading}
+          onLoadMore={() => void loadPage(page + 1)}
           onOpen={(nextCharacter) => handleSetView({ name: 'chat', character: nextCharacter })}
         />
 
         <div className="load-more">
           {isLoading ? <span>正在加载角色...</span> : null}
-          {!isLoading && hasMore ? (
-            <button type="button" onClick={() => void loadPage(page + 1)}>
-              加载更多角色
-            </button>
-          ) : null}
           {!isLoading && !hasMore && characters.length > 0 ? <span>全部角色已加载</span> : null}
         </div>
         </main>
