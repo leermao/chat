@@ -101,7 +101,11 @@ export async function initializeCharacters(db: AppDatabase) {
   await CharacterEntity.bulkCreate(characters, { ignoreDuplicates: true });
 }
 
-export async function listCharacters(db: AppDatabase, page: number, pageSize: number): Promise<PaginatedCharacters> {
+export async function listCharacters(
+  db: AppDatabase,
+  page: number,
+  pageSize: number,
+): Promise<PaginatedCharacters> {
   const CharacterEntity = defineCharacterModel(db);
   const safePage = Math.max(1, Math.floor(page) || 1);
   const safePageSize = Math.min(60, Math.max(1, Math.floor(pageSize) || 24));

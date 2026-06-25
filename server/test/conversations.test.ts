@@ -167,9 +167,7 @@ describe('conversation messages API', () => {
           });
         });
 
-      const messages = await request(app)
-        .get('/api/conversations/31/messages')
-        .expect(200);
+      const messages = await request(app).get('/api/conversations/31/messages').expect(200);
 
       expect(messages.body.length).toBeGreaterThanOrEqual(2);
       const assistantMsg = messages.body.find((m: { role: string }) => m.role === 'assistant');
@@ -192,10 +190,7 @@ describe('conversation messages API', () => {
     it('returns 400 for empty content', async () => {
       const app = await createApp({ databasePath: createTempDatabasePath() });
 
-      await request(app)
-        .post('/api/conversations/31/stream')
-        .send({ content: '' })
-        .expect(400);
+      await request(app).post('/api/conversations/31/stream').send({ content: '' }).expect(400);
     });
   });
 });

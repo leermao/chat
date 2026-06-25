@@ -1,9 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 
-import {
-  type Character,
-  fetchCharacters,
-} from './api';
+import { type Character, fetchCharacters } from './api';
 import { CharacterGrid } from './components/CharacterGrid';
 import { Sidebar } from './components/Sidebar';
 import { ChatPage } from './pages/ChatPage';
@@ -64,7 +61,11 @@ export default function App() {
       />
 
       {view.name === 'chat' ? (
-        <ChatPage character={view.character} onBack={() => handleSetView({ name: 'home' })} onHistory={() => handleSetView({ name: 'history' })} />
+        <ChatPage
+          character={view.character}
+          onBack={() => handleSetView({ name: 'home' })}
+          onHistory={() => handleSetView({ name: 'history' })}
+        />
       ) : view.name === 'history' ? (
         <HistoryPage
           onHome={() => handleSetView({ name: 'home' })}
@@ -72,41 +73,45 @@ export default function App() {
         />
       ) : (
         <main className="content home-content">
-        <header className="topbar">
-          <div>
-            <h1>角色广场</h1>
-            <p>{loadedLabel}</p>
+          <header className="topbar">
+            <div>
+              <h1>角色广场</h1>
+              <p>{loadedLabel}</p>
+            </div>
+            <button
+              className="history-button"
+              type="button"
+              onClick={() => handleSetView({ name: 'history' })}
+            >
+              聊天历史
+            </button>
+          </header>
+
+          <section className="hero-panel">
+            <div>
+              <span>AI CHARACTER UNIVERSE</span>
+              <h2>发现你的专属对话伙伴</h2>
+              <p>每位角色都有不同的表达方式、知识偏好和陪伴节奏，选择一个角色开始真实 AI 对话。</p>
+            </div>
+            <button type="button" onClick={() => handleSetView({ name: 'history' })}>
+              查看聊天历史
+            </button>
+          </section>
+
+          {error ? <div className="status error">{error}</div> : null}
+
+          <CharacterGrid
+            characters={characters}
+            hasMore={hasMore}
+            isLoading={isLoading}
+            onLoadMore={() => void loadPage(page + 1)}
+            onOpen={(nextCharacter) => handleSetView({ name: 'chat', character: nextCharacter })}
+          />
+
+          <div className="load-more">
+            {isLoading ? <span>正在加载角色...</span> : null}
+            {!isLoading && !hasMore && characters.length > 0 ? <span>全部角色已加载</span> : null}
           </div>
-          <button className="history-button" type="button" onClick={() => handleSetView({ name: 'history' })}>
-            聊天历史
-          </button>
-        </header>
-
-        <section className="hero-panel">
-          <div>
-            <span>AI CHARACTER UNIVERSE</span>
-            <h2>发现你的专属对话伙伴</h2>
-            <p>每位角色都有不同的表达方式、知识偏好和陪伴节奏，选择一个角色开始真实 AI 对话。</p>
-          </div>
-          <button type="button" onClick={() => handleSetView({ name: 'history' })}>
-            查看聊天历史
-          </button>
-        </section>
-
-        {error ? <div className="status error">{error}</div> : null}
-
-        <CharacterGrid
-          characters={characters}
-          hasMore={hasMore}
-          isLoading={isLoading}
-          onLoadMore={() => void loadPage(page + 1)}
-          onOpen={(nextCharacter) => handleSetView({ name: 'chat', character: nextCharacter })}
-        />
-
-        <div className="load-more">
-          {isLoading ? <span>正在加载角色...</span> : null}
-          {!isLoading && !hasMore && characters.length > 0 ? <span>全部角色已加载</span> : null}
-        </div>
         </main>
       )}
 

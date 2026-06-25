@@ -51,7 +51,9 @@ describe('CharStreamBuffer', () => {
     expect(buf.isDrained).toBe(false);
 
     // Drain buffer
-    while (buf.pop() !== null) { /* empty */ }
+    while (buf.pop() !== null) {
+      /* empty */
+    }
     expect(buf.isDrained).toBe(true);
   });
 

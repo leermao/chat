@@ -62,6 +62,11 @@ export function defineMessageModel(sequelize: AppDatabase): ModelStatic<MessageM
     {
       tableName: 'messages',
       timestamps: false,
+      indexes: [
+        {
+          fields: ['characterId'],
+        },
+      ],
     },
   );
 }
@@ -80,6 +85,10 @@ function serializeMessage(model: MessageModel): Message {
 export async function initializeConversations(db: AppDatabase) {
   defineMessageModel(db);
   await db.sync();
+
+  // Ensure index exists for existing databases (CREATE INDEX IF NOT EXISTS is idempotent).
+  // Sequelize sync() does not add indexes to existing tables.
+  await db.query('CREATE INDEX IF NOT EXISTS idx_messages_character_id ON messages (characterId)');
 }
 
 export async function listMessages(db: AppDatabase, characterId: number): Promise<Message[]> {
@@ -122,7 +131,11 @@ export async function ensureGreeting(db: AppDatabase, characterId: number): Prom
   return listMessages(db, characterId);
 }
 
-export async function createUserMessage(db: AppDatabase, characterId: number, content: string): Promise<Message> {
+export async function createUserMessage(
+  db: AppDatabase,
+  characterId: number,
+  content: string,
+): Promise<Message> {
   const MessageEntity = defineMessageModel(db);
   const message = await MessageEntity.create({
     characterId,
@@ -142,9 +155,7 @@ export async function clearConversation(db: AppDatabase, characterId: number) {
 export async function listConversationHistory(db: AppDatabase): Promise<ConversationHistoryItem[]> {
   const MessageEntity = defineMessageModel(db);
   const messages = await MessageEntity.findAll({
-    order: [
-      ['id', 'DESC'],
-    ],
+    order: [['id', 'DESC']],
   });
 
   const seenCharacterIds = new Set<number>();

@@ -14,7 +14,7 @@ import {
 import { buildMessages, buildSystemPrompt, streamReply } from './ai/index.js';
 import { createSequelize, type DatabaseOptions } from './database.js';
 
-export interface AppOptions extends DatabaseOptions {}
+export type AppOptions = DatabaseOptions;
 
 export async function createApp(options: AppOptions = {}) {
   const db = createSequelize(options);

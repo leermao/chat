@@ -104,13 +104,7 @@ export function CharacterGrid({
   }
 
   if (characters.length === 0 || size.width === 0 || size.height === 0) {
-    return (
-      <div
-        ref={containerRef}
-        style={{ flex: 1, minHeight: 0 }}
-        aria-label="角色列表"
-      />
-    );
+    return <div ref={containerRef} style={{ flex: 1, minHeight: 0 }} aria-label="角色列表" />;
   }
 
   return (

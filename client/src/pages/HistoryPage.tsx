@@ -3,7 +3,13 @@ import type { Character, ConversationHistoryItem } from '../api';
 import { fetchConversationHistory } from '../api';
 import { Avatar } from '../components/Avatar';
 
-export function HistoryPage({ onOpen, onHome }: { onOpen: (character: Character) => void; onHome: () => void }) {
+export function HistoryPage({
+  onOpen,
+  onHome,
+}: {
+  onOpen: (character: Character) => void;
+  onHome: () => void;
+}) {
   const [history, setHistory] = useState<ConversationHistoryItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState('');
@@ -71,7 +77,11 @@ export function HistoryPage({ onOpen, onHome }: { onOpen: (character: Character)
 
       {error ? <div className="status error">{error}</div> : null}
 
-      {isLoading ? <div className="message-empty" style={{ minHeight: 200 }}>正在加载聊天历史...</div> : null}
+      {isLoading ? (
+        <div className="message-empty" style={{ minHeight: 200 }}>
+          正在加载聊天历史...
+        </div>
+      ) : null}
 
       {!isLoading && history.length === 0 ? (
         <div className="message-empty" style={{ minHeight: 200 }}>

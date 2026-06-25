@@ -2,7 +2,12 @@
   color: #25233a;
   background: #f4f1ff;
   font-family:
-    ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    ui-sans-serif,
+    system-ui,
+    -apple-system,
+    BlinkMacSystemFont,
+    'Segoe UI',
+    sans-serif;
   text-rendering: optimizeLegibility;
 }
 
@@ -274,8 +279,7 @@ button {
   border-radius: 14px 14px 10px 10px;
   background:
     radial-gradient(circle at 8px 9px, #433b7d 0 2px, transparent 3px),
-    radial-gradient(circle at 18px 9px, #433b7d 0 2px, transparent 3px),
-    #fff;
+    radial-gradient(circle at 18px 9px, #433b7d 0 2px, transparent 3px), #fff;
 }
 
 .character-card h2 {
@@ -511,8 +515,13 @@ button {
 }
 
 @keyframes blink {
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0; }
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0;
+  }
 }
 
 /* Streaming message bubble */

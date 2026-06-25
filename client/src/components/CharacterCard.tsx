@@ -1,7 +1,13 @@
 import type { Character } from '../api';
 import { Avatar } from './Avatar';
 
-export function CharacterCard({ character, onOpen }: { character: Character; onOpen: (character: Character) => void }) {
+export function CharacterCard({
+  character,
+  onOpen,
+}: {
+  character: Character;
+  onOpen: (character: Character) => void;
+}) {
   return (
     <article className="character-card">
       <div className="card-code">#{String(character.id).padStart(3, '0')}</div>

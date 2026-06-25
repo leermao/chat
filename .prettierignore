@@ -1,0 +1,6 @@
+node_modules/
+dist/
+*.tsbuildinfo
+server/data/
+package-lock.json
+.playwright-mcp/

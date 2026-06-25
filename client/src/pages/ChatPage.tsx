@@ -1,15 +1,10 @@
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useRef, useState } from 'react';
 import ReactMarkdown from 'react-markdown';
 import type { Character, Message } from '../api';
-import {
-  clearConversation,
-  ensureGreeting,
-  fetchMessages,
-  streamAiReply,
-} from '../api';
-import { CharStreamBuffer } from '../char-stream';
 import { Avatar } from '../components/Avatar';
 import { MessageBubble } from '../components/MessageBubble';
+import { useAiStream } from '../hooks/useAiStream';
+import { useConversation } from '../hooks/useConversation';
 
 export function ChatPage({
   character,
@@ -20,132 +15,31 @@ export function ChatPage({
   onBack: () => void;
   onHistory: () => void;
 }) {
-  const [messages, setMessages] = useState<Message[]>([]);
+  const {
+    messages,
+    setMessages,
+    isLoading,
+    isClearing,
+    error: conversationError,
+    characterNotFound,
+    reloadMessages,
+    clearConversation,
+  } = useConversation(character.id);
+
+  const { isStreaming, streamingContent, streamError, runAiStream, lastSentContentRef } =
+    useAiStream(character.id);
+
   const [draft, setDraft] = useState('');
-  const [isLoading, setIsLoading] = useState(true);
   const [isSending, setIsSending] = useState(false);
-  const [isClearing, setIsClearing] = useState(false);
-  const [isStreaming, setIsStreaming] = useState(false);
-  const [streamingContent, setStreamingContent] = useState('');
-  const [error, setError] = useState('');
-  const [characterNotFound, setCharacterNotFound] = useState(false);
   const messageListRef = useRef<HTMLDivElement>(null);
-  const bufferRef = useRef(new CharStreamBuffer());
-  const charTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  const lastSentContentRef = useRef('');
 
-  async function reloadMessages() {
-    const loaded = await fetchMessages(character.id);
-    setMessages(loaded);
-  }
-
-  function scrollToBottom() {
+  const scrollToBottom = useCallback(() => {
     if (messageListRef.current) {
       messageListRef.current.scrollTop = messageListRef.current.scrollHeight;
     }
-  }
-
-  function stopCharTimer() {
-    if (charTimerRef.current) {
-      clearInterval(charTimerRef.current);
-      charTimerRef.current = null;
-    }
-  }
-
-  useEffect(() => {
-    let cancelled = false;
-
-    async function init() {
-      setIsLoading(true);
-      setError('');
-
-      try {
-        const loaded = await ensureGreeting(character.id);
-        if (!cancelled) {
-          setMessages(loaded);
-        }
-      } catch (loadError) {
-        if (!cancelled) {
-          const message = loadError instanceof Error ? loadError.message : 'Failed to load conversation';
-          if (message === 'Character not found') {
-            setCharacterNotFound(true);
-          } else {
-            setError(message);
-          }
-        }
-      } finally {
-        if (!cancelled) {
-          setIsLoading(false);
-        }
-      }
-    }
-
-    void init();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [character.id]);
-
-  useEffect(() => {
-    return () => {
-      if (charTimerRef.current) {
-        clearInterval(charTimerRef.current);
-      }
-    };
   }, []);
 
-  /** Shared AI streaming runner — used by both handleSend and handleRetry. */
-  async function runAiStream(userContent: string) {
-    setError('');
-    setStreamingContent('');
-    setIsStreaming(true);
-
-    const buffer = bufferRef.current;
-    buffer.reset();
-
-    // Start character-by-character display timer (~40 chars/sec)
-    charTimerRef.current = setInterval(() => {
-      if (buffer.pending > 0) {
-        const char = buffer.pop();
-        if (char !== null) {
-          setStreamingContent((prev) => prev + char);
-          scrollToBottom();
-        }
-      } else if (buffer.isDrained) {
-        // Buffer fully drained and stream complete — persist and clean up
-        if (charTimerRef.current) {
-          clearInterval(charTimerRef.current);
-          charTimerRef.current = null;
-        }
-        reloadMessages()
-          .then(() => setStreamingContent(''))
-          .finally(() => setIsStreaming(false));
-      }
-    }, 25);
-
-    try {
-      for await (const event of streamAiReply(character.id, userContent)) {
-        if ('token' in event) {
-          buffer.push(event.token);
-        } else if ('error' in event) {
-          setError(event.error);
-          stopCharTimer();
-          setIsStreaming(false);
-          break;
-        } else if ('done' in event) {
-          buffer.markDone();
-          break;
-        }
-      }
-    } catch (streamError) {
-      setError(streamError instanceof Error ? streamError.message : 'Stream failed');
-      stopCharTimer();
-      setIsStreaming(false);
-    }
-  }
-
-  async function handleSend() {
+  const handleSend = useCallback(async () => {
     const content = draft.trim();
     if (!content || isSending || isStreaming) {
       return;
@@ -166,29 +60,26 @@ export function ChatPage({
     setDraft('');
     setIsSending(false);
 
-    await runAiStream(content);
-  }
+    await runAiStream(content, scrollToBottom, reloadMessages);
+  }, [
+    draft,
+    isSending,
+    isStreaming,
+    character.id,
+    setMessages,
+    runAiStream,
+    scrollToBottom,
+    reloadMessages,
+    lastSentContentRef,
+  ]);
 
-  async function handleRetry() {
+  const handleRetry = useCallback(async () => {
     const content = lastSentContentRef.current;
     if (!content || isStreaming) return;
-    await runAiStream(content);
-  }
+    await runAiStream(content, scrollToBottom, reloadMessages);
+  }, [isStreaming, runAiStream, scrollToBottom, reloadMessages, lastSentContentRef]);
 
-  async function handleClear() {
-    setIsClearing(true);
-    setError('');
-
-    try {
-      await clearConversation(character.id);
-      await ensureGreeting(character.id);
-      await reloadMessages();
-    } catch (clearError) {
-      setError(clearError instanceof Error ? clearError.message : 'Failed to clear conversation');
-    } finally {
-      setIsClearing(false);
-    }
-  }
+  const displayError = conversationError || streamError;
 
   if (characterNotFound) {
     return (
@@ -199,7 +90,17 @@ export function ChatPage({
           </button>
         </header>
 
-        <section className="message-empty" style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 16 }}>
+        <section
+          className="message-empty"
+          style={{
+            flex: 1,
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: 16,
+          }}
+        >
           <p style={{ fontSize: 48, margin: 0 }}>😕</p>
           <h2 style={{ margin: 0 }}>角色不存在</h2>
           <p style={{ color: '#999', fontSize: 14, margin: 0 }}>该角色可能已被删除或从未存在</p>
@@ -232,7 +133,7 @@ export function ChatPage({
           <button type="button" onClick={onHistory}>
             历史
           </button>
-          <button type="button" disabled={isClearing} onClick={() => void handleClear()}>
+          <button type="button" disabled={isClearing} onClick={() => void clearConversation()}>
             清空
           </button>
         </nav>
@@ -246,20 +147,16 @@ export function ChatPage({
         </div>
       </section>
 
-      {error ? (
-          <div className="status error">
-            <span>{error}</span>
-            {lastSentContentRef.current ? (
-              <button
-                className="retry-button"
-                type="button"
-                onClick={() => void handleRetry()}
-              >
-                重试
-              </button>
-            ) : null}
-          </div>
-        ) : null}
+      {displayError ? (
+        <div className="status error">
+          <span>{displayError}</span>
+          {lastSentContentRef.current ? (
+            <button className="retry-button" type="button" onClick={() => void handleRetry()}>
+              重试
+            </button>
+          ) : null}
+        </div>
+      ) : null}
 
       <section className="message-list" aria-label="聊天消息" ref={messageListRef}>
         {isLoading ? <div className="message-empty">正在载入聊天记录...</div> : null}
@@ -301,7 +198,11 @@ export function ChatPage({
           placeholder="输入消息，支持 **粗体** 和 *斜体*"
           value={draft}
         />
-        <button disabled={!draft.trim() || isInputDisabled} type="button" onClick={() => void handleSend()}>
+        <button
+          disabled={!draft.trim() || isInputDisabled}
+          type="button"
+          onClick={() => void handleSend()}
+        >
           发送
         </button>
       </footer>

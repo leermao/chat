@@ -34,9 +34,7 @@ describe('streamReply', () => {
 
     const { streamReply } = await import('../../src/ai/graph.js');
 
-    const messages: BaseMessage[] = [
-      new AIMessage({ content: 'Hello' }),
-    ];
+    const messages: BaseMessage[] = [new AIMessage({ content: 'Hello' })];
 
     const tokens: string[] = [];
     for await (const token of streamReply(messages)) {
