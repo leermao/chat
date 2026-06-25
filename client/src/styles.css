@@ -535,6 +535,7 @@ button {
 
 .history-card {
   display: flex;
+  min-width: 0;
   align-items: center;
   gap: 14px;
   border: 1px solid #f0edff;
@@ -597,16 +598,29 @@ button {
     padding-bottom: 82px;
   }
 
-  .home-content {
-    max-height: calc(100vh - 110px);
-  }
-
   .sidebar {
     display: none;
   }
 
+  /* Constrain all content pages above the fixed bottom nav */
   .content {
+    max-height: calc(100vh - 110px);
+    overflow: hidden auto;
     padding: 14px;
+  }
+
+  /* Home page: grid handles internal scroll via react-window */
+  .home-content {
+    max-height: calc(100vh - 110px);
+    overflow: hidden;
+  }
+
+  /* Chat page: internal grid handles scroll via message-list */
+  .chat-content {
+    min-height: unset;
+    max-height: calc(100vh - 110px);
+    overflow: hidden;
+    grid-template-rows: auto 1fr auto;
   }
 
   .topbar {
@@ -625,15 +639,20 @@ button {
   }
 
   .hero-panel {
-    padding: 18px;
+    padding: 12px;
   }
 
   .hero-panel h2 {
-    font-size: 22px;
+    font-size: 17px;
+  }
+
+  .hero-panel p {
+    font-size: 12px;
+    line-height: 1.5;
   }
 
   .history-grid {
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(0, 1fr);
   }
 
   .bottom-nav {
@@ -666,22 +685,23 @@ button {
     color: #fff;
   }
 
-  .chat-content {
-    min-height: calc(100vh - 110px);
-  }
-
   .chat-topbar {
     grid-template-columns: auto 1fr auto;
     gap: 8px;
+    margin: -14px -14px 14px;
+    padding: 14px;
+    background: rgb(255 255 255 / 94%);
+    backdrop-filter: blur(16px);
+    border-bottom: 1px solid #f0edff;
   }
 
   .chat-topbar p {
     max-width: 42vw;
   }
 
+  /* Hide redundant profile on mobile — topbar already shows name + description */
   .chat-profile {
-    align-items: flex-start;
-    padding: 14px;
+    display: none;
   }
 
   .message-bubble {
