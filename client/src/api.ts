@@ -98,3 +98,71 @@ export async function fetchConversationHistory(): Promise<ConversationHistoryIte
 
   return response.json() as Promise<ConversationHistoryItem[]>;
 }
+
+export async function* streamAiReply(
+  characterId: number,
+  content: string,
+): AsyncGenerator<{ token: string } | { error: string } | { done: true }> {
+  const response = await fetch(`/api/conversations/${characterId}/stream`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ content }),
+  });
+
+  if (!response.ok) {
+    const errorBody = await response.json().catch(() => ({}));
+    const message =
+      typeof (errorBody as Record<string, unknown>).error === 'string'
+        ? (errorBody as Record<string, string>).error
+        : `Server error (${response.status})`;
+    yield { error: message };
+    return;
+  }
+
+  if (!response.body) {
+    yield { error: 'No response body' };
+    return;
+  }
+
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = '';
+
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+
+      buffer += decoder.decode(value, { stream: true });
+      const lines = buffer.split('\n');
+      buffer = lines.pop() || '';
+
+      for (const line of lines) {
+        const trimmed = line.trim();
+        if (!trimmed || !trimmed.startsWith('data: ')) continue;
+
+        const data = trimmed.slice('data: '.length);
+
+        if (data === '[DONE]') {
+          yield { done: true };
+          return;
+        }
+
+        try {
+          const parsed = JSON.parse(data);
+          if (parsed.error) {
+            yield { error: parsed.error };
+            return;
+          }
+          if (parsed.token) {
+            yield { token: parsed.token };
+          }
+        } catch {
+          // Skip unparseable lines
+        }
+      }
+    }
+  } finally {
+    reader.releaseLock();
+  }
+}

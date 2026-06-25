@@ -3,9 +3,18 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import request from 'supertest';
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { createApp } from './app.js';
+
+vi.mock('./ai/index.js', () => ({
+  buildSystemPrompt: vi.fn(() => 'You are a helpful assistant.'),
+  buildMessages: vi.fn((_prompt: string, msgs: unknown[]) => msgs),
+  streamReply: vi.fn(async function* () {
+    yield '你好';
+    yield '！';
+  }),
+}));
 
 const tempDirs: string[] = [];
 
@@ -112,6 +121,81 @@ describe('conversation messages API', () => {
     expect(history.body[0].latestMessage).toMatchObject({
       role: 'user',
       content: '你好，**很高兴**认识你',
+    });
+  });
+
+  describe('stream endpoint', () => {
+    it('returns SSE content-type and streams tokens', async () => {
+      const app = await createApp({ databasePath: createTempDatabasePath() });
+
+      let rawBody = '';
+      const res = await request(app)
+        .post('/api/conversations/31/stream')
+        .send({ content: '你好' })
+        .buffer()
+        .parse((res, callback) => {
+          res.on('data', (chunk: Buffer) => {
+            rawBody += chunk.toString();
+          });
+          res.on('end', () => {
+            callback(null, rawBody);
+          });
+        });
+
+      expect(res.status).toBe(200);
+      expect(res.headers['content-type']).toContain('text/event-stream');
+      expect(rawBody).toContain('data: ');
+      expect(rawBody).toContain('你好');
+      expect(rawBody).toContain('！');
+      expect(rawBody).toContain('[DONE]');
+    });
+
+    it('saves assistant message after streaming', async () => {
+      const app = await createApp({ databasePath: createTempDatabasePath() });
+
+      await request(app)
+        .post('/api/conversations/31/stream')
+        .send({ content: '你好' })
+        .buffer()
+        .parse((res, callback) => {
+          let body = '';
+          res.on('data', (chunk: Buffer) => {
+            body += chunk.toString();
+          });
+          res.on('end', () => {
+            callback(null, body);
+          });
+        });
+
+      const messages = await request(app)
+        .get('/api/conversations/31/messages')
+        .expect(200);
+
+      expect(messages.body.length).toBeGreaterThanOrEqual(2);
+      const assistantMsg = messages.body.find((m: { role: string }) => m.role === 'assistant');
+      expect(assistantMsg).toBeDefined();
+      expect(assistantMsg.content).toBe('你好！');
+      const userMsg = messages.body.find((m: { role: string }) => m.role === 'user');
+      expect(userMsg).toBeDefined();
+      expect(userMsg.content).toBe('你好');
+    });
+
+    it('returns 404 for unknown character', async () => {
+      const app = await createApp({ databasePath: createTempDatabasePath() });
+
+      await request(app)
+        .post('/api/conversations/9999/stream')
+        .send({ content: 'Hello' })
+        .expect(404);
+    });
+
+    it('returns 400 for empty content', async () => {
+      const app = await createApp({ databasePath: createTempDatabasePath() });
+
+      await request(app)
+        .post('/api/conversations/31/stream')
+        .send({ content: '' })
+        .expect(400);
     });
   });
 });

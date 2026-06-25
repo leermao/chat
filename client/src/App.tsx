@@ -1,5 +1,6 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import ReactMarkdown from 'react-markdown';
+import { Grid } from 'react-window';
 
 import {
   type Character,
@@ -10,7 +11,7 @@ import {
   fetchCharacters,
   fetchConversationHistory,
   fetchMessages,
-  sendUserMessage,
+  streamAiReply,
 } from './api';
 
 const PAGE_SIZE = 24;
@@ -98,6 +99,101 @@ function CharacterCard({ character, onOpen }: { character: Character; onOpen: (c
   );
 }
 
+interface CharacterCellData {
+  characters: Character[];
+  columnCount: number;
+  onOpen: (character: Character) => void;
+}
+
+function CharacterCell({
+  columnIndex,
+  rowIndex,
+  style,
+  characters,
+  columnCount,
+  onOpen,
+}: {
+  ariaAttributes?: Record<string, unknown>;
+  columnIndex: number;
+  rowIndex: number;
+  style: React.CSSProperties;
+} & CharacterCellData) {
+  const index = rowIndex * columnCount + columnIndex;
+  if (index >= characters.length) return null;
+  const character = characters[index];
+  return (
+    <div style={{ ...style, padding: 8, overflow: 'hidden' }}>
+      <CharacterCard character={character} key={character.id} onOpen={onOpen} />
+    </div>
+  );
+}
+
+function CharacterGrid({
+  characters,
+  onOpen,
+}: {
+  characters: Character[];
+  onOpen: (character: Character) => void;
+}) {
+  const containerRef = useRef<HTMLDivElement>(null);
+  const [size, setSize] = useState({ width: 0, height: 0 });
+
+  useEffect(() => {
+    const el = containerRef.current;
+    if (!el) return;
+
+    const observer = new ResizeObserver((entries) => {
+      for (const entry of entries) {
+        setSize({
+          width: entry.contentRect.width,
+          height: entry.contentRect.height,
+        });
+      }
+    });
+
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, []);
+
+  const minCardWidth = 260;
+  const columnCount = Math.max(1, Math.min(3, Math.floor(size.width / minCardWidth)));
+  const columnWidth = size.width / columnCount;
+  const rowHeight = 260; // card min-height 206 + padding + gap buffer
+  const rowCount = Math.ceil(characters.length / columnCount);
+
+  if (characters.length === 0 || size.width === 0 || size.height === 0) {
+    return (
+      <div
+        ref={containerRef}
+        style={{ flex: 1, minHeight: 0 }}
+        aria-label="角色列表"
+      />
+    );
+  }
+
+  return (
+    <div ref={containerRef} style={{ flex: 1, minHeight: 0 }}>
+      <Grid<CharacterCellData>
+        aria-label="角色列表"
+        cellComponent={CharacterCell}
+        cellProps={{ characters, columnCount, onOpen }}
+        columnCount={columnCount}
+        columnWidth={columnWidth}
+        defaultHeight={size.height}
+        defaultWidth={size.width}
+        overscanCount={2}
+        rowCount={rowCount}
+        rowHeight={rowHeight}
+        style={{
+          width: size.width,
+          height: size.height,
+          overflowX: 'hidden',
+        }}
+      />
+    </div>
+  );
+}
+
 function ChatPage({
   character,
   onBack,
@@ -110,49 +206,98 @@ function ChatPage({
   const [isLoading, setIsLoading] = useState(true);
   const [isSending, setIsSending] = useState(false);
   const [isClearing, setIsClearing] = useState(false);
+  const [isStreaming, setIsStreaming] = useState(false);
+  const [streamingContent, setStreamingContent] = useState('');
   const [error, setError] = useState('');
+  const messageListRef = useRef<HTMLDivElement>(null);
 
   async function reloadMessages() {
     const loaded = await fetchMessages(character.id);
     setMessages(loaded);
   }
 
-  const loadConversation = useCallback(async () => {
-    setIsLoading(true);
-    setError('');
-
-    try {
-      await ensureGreeting(character.id);
-      const loaded = await fetchMessages(character.id);
-      setMessages(loaded);
-    } catch (loadError) {
-      setError(loadError instanceof Error ? loadError.message : 'Failed to load conversation');
-    } finally {
-      setIsLoading(false);
+  function scrollToBottom() {
+    if (messageListRef.current) {
+      messageListRef.current.scrollTop = messageListRef.current.scrollHeight;
     }
-  }, [character.id]);
+  }
 
   useEffect(() => {
-    void loadConversation();
-  }, [loadConversation]);
+    let cancelled = false;
+
+    async function init() {
+      setIsLoading(true);
+      setError('');
+
+      try {
+        const loaded = await ensureGreeting(character.id);
+        if (!cancelled) {
+          setMessages(loaded);
+        }
+      } catch (loadError) {
+        if (!cancelled) {
+          setError(loadError instanceof Error ? loadError.message : 'Failed to load conversation');
+        }
+      } finally {
+        if (!cancelled) {
+          setIsLoading(false);
+        }
+      }
+    }
+
+    void init();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [character.id]);
 
   async function handleSend() {
     const content = draft.trim();
-    if (!content || isSending) {
+    if (!content || isSending || isStreaming) {
       return;
     }
 
     setIsSending(true);
     setError('');
+    setStreamingContent('');
+
+    // Optimistically add user message to local state
+    const optimisticUserMsg: Message = {
+      id: Date.now(),
+      characterId: character.id,
+      role: 'user',
+      content,
+      createdAt: new Date().toISOString(),
+    };
+    setMessages((prev) => [...prev, optimisticUserMsg]);
+    setDraft('');
+    setIsSending(false);
+    setIsStreaming(true);
+
+    let accumulated = '';
 
     try {
-      await sendUserMessage(character.id, content);
-      setDraft('');
+      for await (const event of streamAiReply(character.id, content)) {
+        if ('token' in event) {
+          accumulated += event.token;
+          setStreamingContent(accumulated);
+          scrollToBottom();
+        } else if ('error' in event) {
+          setError(event.error);
+          break;
+        } else if ('done' in event) {
+          break;
+        }
+      }
+
+      // Reload messages to get persisted messages with correct IDs
       await reloadMessages();
-    } catch (sendError) {
-      setError(sendError instanceof Error ? sendError.message : 'Failed to send message');
+      setStreamingContent('');
+    } catch (streamError) {
+      setError(streamError instanceof Error ? streamError.message : 'Stream failed');
     } finally {
-      setIsSending(false);
+      setIsStreaming(false);
     }
   }
 
@@ -170,6 +315,8 @@ function ChatPage({
       setIsClearing(false);
     }
   }
+
+  const isInputDisabled = isSending || isStreaming;
 
   return (
     <main className="content chat-content">
@@ -196,28 +343,47 @@ function ChatPage({
 
       {error ? <div className="status error">{error}</div> : null}
 
-      <section className="message-list" aria-label="聊天消息">
+      <section className="message-list" aria-label="聊天消息" ref={messageListRef}>
         {isLoading ? <div className="message-empty">正在载入聊天记录...</div> : null}
-        {!isLoading && messages.length === 0 ? <div className="message-empty">暂无消息</div> : null}
+        {!isLoading && messages.length === 0 && !isStreaming ? (
+          <div className="message-empty">暂无消息</div>
+        ) : null}
         {messages.map((message) => (
           <MessageBubble character={character} key={message.id} message={message} />
         ))}
+        {isStreaming && streamingContent ? (
+          <article className="message-row assistant streaming">
+            <Avatar character={character} />
+            <div className="message-bubble">
+              <ReactMarkdown>{streamingContent}</ReactMarkdown>
+              <span className="typing-cursor" />
+            </div>
+          </article>
+        ) : null}
+        {isStreaming && !streamingContent ? (
+          <article className="message-row assistant streaming">
+            <Avatar character={character} />
+            <div className="message-bubble">
+              <span className="typing-cursor">...</span>
+            </div>
+          </article>
+        ) : null}
       </section>
 
       <footer className="composer">
         <input
           aria-label="输入消息"
-          disabled={isSending}
+          disabled={isInputDisabled}
           onChange={(event) => setDraft(event.target.value)}
           onKeyDown={(event) => {
-            if (event.key === 'Enter') {
+            if (event.key === 'Enter' && !isInputDisabled) {
               void handleSend();
             }
           }}
           placeholder="输入消息，支持 **粗体** 和 *斜体*"
           value={draft}
         />
-        <button disabled={!draft.trim() || isSending} type="button" onClick={() => void handleSend()}>
+        <button disabled={!draft.trim() || isInputDisabled} type="button" onClick={() => void handleSend()}>
           发送
         </button>
       </footer>
@@ -407,7 +573,7 @@ export default function App() {
           onOpen={(character) => handleSetView({ name: 'chat', character })}
         />
       ) : (
-        <main className="content">
+        <main className="content home-content">
         <header className="topbar">
           <div>
             <h1>角色广场</h1>
@@ -431,11 +597,10 @@ export default function App() {
 
         {error ? <div className="status error">{error}</div> : null}
 
-        <section className="character-grid" aria-label="角色列表">
-          {characters.map((character) => (
-            <CharacterCard character={character} key={character.id} onOpen={(nextCharacter) => handleSetView({ name: 'chat', character: nextCharacter })} />
-          ))}
-        </section>
+        <CharacterGrid
+          characters={characters}
+          onOpen={(nextCharacter) => handleSetView({ name: 'chat', character: nextCharacter })}
+        />
 
         <div className="load-more">
           {isLoading ? <span>正在加载角色...</span> : null}

@@ -99,16 +99,18 @@ export async function ensureGreeting(db: AppDatabase, characterId: number): Prom
   }
 
   const MessageEntity = defineMessageModel(db);
-  const existingCount = await MessageEntity.count({ where: { characterId } });
 
-  if (existingCount === 0) {
-    await MessageEntity.create({
+  // Use findOrCreate instead of count-then-create to reduce race-condition
+  // window when concurrent requests arrive (e.g. React StrictMode double-fire).
+  await MessageEntity.findOrCreate({
+    where: { characterId },
+    defaults: {
       characterId,
-      role: 'assistant',
+      role: 'assistant' as const,
       content: character.greeting,
       createdAt: new Date().toISOString(),
-    });
-  }
+    },
+  });
 
   return listMessages(db, characterId);
 }

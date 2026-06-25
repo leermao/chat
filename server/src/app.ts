@@ -5,11 +5,13 @@ import { getCharacter, initializeCharacters, listCharacters } from './characters
 import {
   clearConversation,
   createUserMessage,
+  defineMessageModel,
   ensureGreeting,
   initializeConversations,
   listConversationHistory,
   listMessages,
 } from './conversations.js';
+import { buildMessages, buildSystemPrompt, streamReply } from './ai/index.js';
 import { createSequelize, type DatabaseOptions } from './database.js';
 
 export interface AppOptions extends DatabaseOptions {}
@@ -94,6 +96,78 @@ export async function createApp(options: AppOptions = {}) {
     }
 
     res.status(201).json(await createUserMessage(db, characterId, content));
+  });
+
+  app.post('/api/conversations/:characterId/stream', async (req, res) => {
+    const characterId = Number(req.params.characterId);
+    const character = await getCharacter(db, characterId);
+    const content = typeof req.body?.content === 'string' ? req.body.content.trim() : '';
+
+    if (!character) {
+      res.status(404).json({ error: 'Character not found' });
+      return;
+    }
+
+    if (!content) {
+      res.status(400).json({ error: 'Message content is required' });
+      return;
+    }
+
+    // Save user message
+    await createUserMessage(db, characterId, content);
+
+    // Load context (last 20 messages)
+    const allMessages = await listMessages(db, characterId);
+    const recentMessages = allMessages.slice(-20);
+
+    // Build system prompt with messages
+    const systemPrompt = buildSystemPrompt(character);
+    const lcMessages = buildMessages(systemPrompt, recentMessages);
+
+    // Set SSE headers
+    res.writeHead(200, {
+      'Content-Type': 'text/event-stream',
+      'Cache-Control': 'no-cache',
+      Connection: 'keep-alive',
+      'X-Accel-Buffering': 'no',
+    });
+
+    let fullResponse = '';
+
+    try {
+      for await (const token of streamReply(lcMessages)) {
+        fullResponse += token;
+        res.write(`data: ${JSON.stringify({ token })}\n\n`);
+      }
+
+      // Save assistant message after streaming completes
+      if (fullResponse.trim()) {
+        const MessageEntity = defineMessageModel(db);
+        await MessageEntity.create({
+          characterId,
+          role: 'assistant',
+          content: fullResponse.trim(),
+          createdAt: new Date().toISOString(),
+        });
+      }
+
+      res.write('data: [DONE]\n\n');
+      res.end();
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'AI request failed';
+      // If we haven't sent any tokens yet, also save a fallback assistant message
+      if (fullResponse.trim()) {
+        const MessageEntity = defineMessageModel(db);
+        await MessageEntity.create({
+          characterId,
+          role: 'assistant',
+          content: fullResponse.trim(),
+          createdAt: new Date().toISOString(),
+        });
+      }
+      res.write(`data: ${JSON.stringify({ error: message })}\n\n`);
+      res.end();
+    }
   });
 
   app.delete('/api/conversations/:characterId', async (req, res) => {

@@ -133,10 +133,17 @@ button {
 
 .content {
   min-width: 0;
+  display: flex;
+  flex-direction: column;
   border: 1px solid #ebe7ff;
   border-radius: 14px;
   background: rgb(255 255 255 / 76%);
   padding: 20px;
+}
+
+.home-content {
+  max-height: calc(100vh - 44px);
+  overflow: hidden;
 }
 
 .topbar {
@@ -204,15 +211,11 @@ button {
   color: #a53131;
 }
 
-.character-grid {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 16px;
-}
-
 .character-card {
   position: relative;
-  min-height: 206px;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
   border: 1px solid #f0edff;
   border-radius: 10px;
   background: #fff;
@@ -258,10 +261,14 @@ button {
 }
 
 .character-card p {
-  min-height: 48px;
+  flex: 1;
   margin: 0 0 16px;
+  overflow: hidden;
   font-size: 13px;
   line-height: 1.55;
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
 }
 
 .character-card button {
@@ -271,6 +278,8 @@ button {
   padding: 0;
   font-weight: 700;
   cursor: pointer;
+  margin-top: auto;
+  align-self: flex-start;
 }
 
 .load-more {
@@ -462,6 +471,34 @@ button {
   opacity: 0.45;
 }
 
+/* Typing cursor animation */
+.typing-cursor {
+  display: inline-block;
+  width: 2px;
+  height: 1.1em;
+  margin-left: 1px;
+  background: #7257ff;
+  vertical-align: text-bottom;
+  animation: blink 1s step-end infinite;
+}
+
+@keyframes blink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0; }
+}
+
+/* Streaming message bubble */
+.message-row.streaming .message-bubble {
+  border-color: #b8a9ff;
+  box-shadow: 0 10px 24px rgb(80 60 170 / 8%);
+}
+
+/* Enable scrolling on message list */
+.message-list {
+  overflow-y: auto;
+  scroll-behavior: smooth;
+}
+
 .history-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -532,6 +569,10 @@ button {
     padding-bottom: 82px;
   }
 
+  .home-content {
+    max-height: calc(100vh - 110px);
+  }
+
   .sidebar {
     display: none;
   }
@@ -561,10 +602,6 @@ button {
 
   .hero-panel h2 {
     font-size: 22px;
-  }
-
-  .character-grid {
-    grid-template-columns: 1fr;
   }
 
   .history-grid {
