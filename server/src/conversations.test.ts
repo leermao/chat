@@ -85,4 +85,33 @@ describe('conversation messages API', () => {
     expect(afterClear.body).toHaveLength(1);
     expect(afterClear.body[0].character.id).toBe(31);
   });
+
+  it('saves a user message for a character conversation', async () => {
+    const app = await createApp({ databasePath: createTempDatabasePath() });
+
+    await request(app).post('/api/conversations/31/ensure-greeting').expect(200);
+    const created = await request(app)
+      .post('/api/conversations/31/messages')
+      .send({ content: '你好，**很高兴**认识你' })
+      .expect(201);
+
+    expect(created.body).toMatchObject({
+      characterId: 31,
+      role: 'user',
+      content: '你好，**很高兴**认识你',
+    });
+
+    const messages = await request(app).get('/api/conversations/31/messages').expect(200);
+    expect(messages.body).toHaveLength(2);
+    expect(messages.body[1]).toMatchObject({
+      role: 'user',
+      content: '你好，**很高兴**认识你',
+    });
+
+    const history = await request(app).get('/api/conversations').expect(200);
+    expect(history.body[0].latestMessage).toMatchObject({
+      role: 'user',
+      content: '你好，**很高兴**认识你',
+    });
+  });
 });

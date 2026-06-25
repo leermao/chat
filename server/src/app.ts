@@ -4,6 +4,7 @@ import express from 'express';
 import { getCharacter, initializeCharacters, listCharacters } from './characters.js';
 import {
   clearConversation,
+  createUserMessage,
   ensureGreeting,
   initializeConversations,
   listConversationHistory,
@@ -75,6 +76,24 @@ export async function createApp(options: AppOptions = {}) {
     }
 
     res.json(await listMessages(db, characterId));
+  });
+
+  app.post('/api/conversations/:characterId/messages', async (req, res) => {
+    const characterId = Number(req.params.characterId);
+    const character = await getCharacter(db, characterId);
+    const content = typeof req.body?.content === 'string' ? req.body.content.trim() : '';
+
+    if (!character) {
+      res.status(404).json({ error: 'Character not found' });
+      return;
+    }
+
+    if (!content) {
+      res.status(400).json({ error: 'Message content is required' });
+      return;
+    }
+
+    res.status(201).json(await createUserMessage(db, characterId, content));
   });
 
   app.delete('/api/conversations/:characterId', async (req, res) => {

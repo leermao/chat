@@ -113,6 +113,18 @@ export async function ensureGreeting(db: AppDatabase, characterId: number): Prom
   return listMessages(db, characterId);
 }
 
+export async function createUserMessage(db: AppDatabase, characterId: number, content: string): Promise<Message> {
+  const MessageEntity = defineMessageModel(db);
+  const message = await MessageEntity.create({
+    characterId,
+    role: 'user',
+    content,
+    createdAt: new Date().toISOString(),
+  });
+
+  return serializeMessage(message);
+}
+
 export async function clearConversation(db: AppDatabase, characterId: number) {
   const MessageEntity = defineMessageModel(db);
   await MessageEntity.destroy({ where: { characterId } });
